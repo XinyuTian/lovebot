@@ -33,35 +33,35 @@ class Session:
     right_stroke_count: int = 0
     session_started_at: timestamp
 
-    def detect_one_stroke_left(self):
-        i = self.left_pointer
-        j = 0  # button_stroke_names_pointer
+    @classmethod
+    def detect_upto_one_left_stroke(cls):
+        i = cls.left_pointer
+        j = 0 # button_stroke_name_pointer
         stroke_starts_from = -1
-        while i < len(self.stimulation_left_log) and j <= 2:
-            if self.stimulation_left_log[i].button_name == button_stroke_names[0]:
+        while i < len(cls.stimulation_left_log) and j <= 2:
+            if cls.stimulation_left_log[i].button_name == button_stroke_names[0]:
                 stroke_starts_from = i
                 i += 1
                 j = 1
                 continue
-            if self.stimulation_left_log[i].button_name == button_stroke_names[j]:
+            if cls.stimulation_left_log[i].button_name == button_stroke_names[j]:
                 j += 1
-            elif self.stimulation_left_log[i].button_name == button_stroke_names[j - 1]:
+            elif cls.stimulation_left_log[i].button_name == button_stroke_names[j-1]:
                 pass
             else:
                 stroke_starts_from = -1
             i += 1
-        if j == 3 and self.stimulation_left_log[i - 1].received_at - self.stimulation_left_log[
-            stroke_starts_from].received_at < velocity_goal:
-            self.left_stroke_count += 1
-            self.left_pointer = i
+        if j == 3 and cls.stimulation_left_log[i-1].received_at - cls.stimulation_left_log[stroke_starts_from].received_at < cls.velocity_goal:
+            cls.left_stroke_count += 1
+            cls.left_pointer = i
 
     def session_state(self):
         pass
 
 
 class Orchestrator:
-    status: str  # enum active/inactive
-    happiness_count: int = 0
+    status: str # enum active/inactive
+    happiness_count: int=0
 
     def get_session_state(session):
         pass
@@ -69,23 +69,27 @@ class Orchestrator:
 
 async def catch_pin_transitions(button):
     """Print a message when pin goes low and when it goes high."""
-    session = Session()
     with keypad.Keys((button.pin,), value_when_pressed=False) as keys:
         while True:
             event = keys.events.get()
             if event:
                 if event.pressed:
                     stimulation = Stimulation(button.name, time.time())
-                    session.stimulation_left_log.append(stimulation)
-                    print(stimulation.button_name, stimulation.received_at, len(session.stimulation_left_log))
-            await asyncio.sleep(0)
+                    Session.stimulation_left_log.append(stimulation)
+                    print(stimulation.button_name, stimulation.received_at, len(Session.stimulation_left_log))
+            await asyncio.sleep(0.1)
 
+async def looper():
+    while(True):
+        Session.detect_upto_one_left_stroke()
+        print(f"Left strokes: {Session.left_stroke_count}")
+        await asyncio.sleep(0.5)
 
 async def main():
     interrupt_task_b = asyncio.create_task(catch_pin_transitions(button_b))
     interrupt_task_g = asyncio.create_task(catch_pin_transitions(button_g))
     interrupt_task_r = asyncio.create_task(catch_pin_transitions(button_r))
-    await asyncio.gather(interrupt_task_b, interrupt_task_g, interrupt_task_r)
+    looper_task = asyncio.create_task(looper())
+    await asyncio.gather(interrupt_task_b, interrupt_task_g, interrupt_task_r, looper_task)
 
-
-asyncio.run(main())
+asyncio.get_event_loop().run_until_complete(main())
