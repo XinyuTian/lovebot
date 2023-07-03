@@ -37,23 +37,34 @@ DISPLAY = framebufferio.FramebufferDisplay(matrix, auto_refresh=True, rotation=1
 
 
 class RGB_Api:
-    def __init__(self):
-        self.image_loc1_0 = "smiley_0.bmp"  # 64*48
-        self.image_loc1_1 = "smiley_1.bmp"  # 64*48
+    def __init__(
+        self,
+        image_1="smiley_0.bmp",
+        image_2="smiley_1.bmp",
+        text="Welcome to our home!",
+    ):
+        # Set images
+        self.image_loc1_0 = image_1
+        self.image_loc1_1 = image_2
         self.image_loc1_number = 0
 
         # Set text
-        self.txt_str_single = "Welcome to our home!"
+        self.txt_str_single = text
         self.txt_str = (self.txt_str_single + " ") * 4
-        self.txt_color = 0x0F241C
+        self.txt_color = 0x030B00
         self.txt_x = 0
         self.txt_y = 32
         self.txt_font = terminalio.FONT
         self.txt_line_spacing = 0.8
         self.txt_scale = 1
 
-        # Set scroll
+        # Set speed
+        self.switch_speed = 2
         self.scroll_speed = 30
+        self.scroll_steps_per_switch = self.scroll_speed // self.switch_speed
+
+        # Set division
+        self.image_height = 48
 
         # The following codes don't need to be set
         if self.txt_font == terminalio.FONT:
@@ -67,8 +78,8 @@ class RGB_Api:
             scale=self.txt_scale,
             text=self.txt_str,
         )
-        self.sroll_text.x = 32
-        self.sroll_text.y = 56
+        self.sroll_text.x = unit_width // 2
+        self.sroll_text.y = (unit_height + self.image_height) // 2
 
     def animate_image_and_scrolling_text(self):
         group = displayio.Group()
@@ -101,11 +112,10 @@ class RGB_Api:
             )
 
             # update the text
-            n = 0.5 // (1 / self.scroll_speed)
-            for i in range(n):
+            for i in range(self.scroll_steps_per_switch):
                 x = self.sroll_text.x - 1
-                if x < - text_length_pixel:
-                    x = DISPLAY.width
+                if x < -text_length_pixel:
+                    x = DISPLAY.width // 2
                 self.sroll_text.x = x
 
                 time.sleep(1 / self.scroll_speed)
