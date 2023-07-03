@@ -1,7 +1,33 @@
 import asyncio
 import board
 import keypad
+import displayio
+import framebufferio
+import rgbmatrix
 import time
+
+bit_depth_value = 6
+unit_width = 64
+unit_height = 64
+chain_width = 1
+chain_height = 1
+serpentine_value = True
+
+width_value = unit_width*chain_width
+height_value = unit_height*chain_height
+
+displayio.release_displays()
+
+matrix = rgbmatrix.RGBMatrix(
+    width=width_value, height=height_value, bit_depth=bit_depth_value,
+    rgb_pins=[board.GP2, board.GP3, board.GP4, board.GP5, board.GP8, board.GP9],
+    addr_pins=[board.GP10, board.GP16, board.GP18, board.GP20, board.GP22],
+    clock_pin=board.GP11, latch_pin=board.GP12, output_enable_pin=board.GP13,
+    tile=chain_height, serpentine=serpentine_value,
+    doublebuffer=True)
+
+# https://docs.circuitpython.org/en/latest/shared-bindings/framebufferio/index.html#framebufferio.FramebufferDisplay
+DISPLAY = framebufferio.FramebufferDisplay(matrix, auto_refresh=True,rotation=180)
 
 
 class Stimulation:
@@ -17,9 +43,27 @@ class Button:
 
 
 button_stroke_names = ["L1_blue", "L2_green", "L3_red"]
-button_b = Button(button_stroke_names[0], board.GP26)
-button_g = Button(button_stroke_names[1], board.GP28)
-button_r = Button(button_stroke_names[2], board.GP27)
+button_b = Button(button_stroke_names[0], board.GP28)
+button_g = Button(button_stroke_names[1], board.GP27)
+button_r = Button(button_stroke_names[2], board.GP26)
+
+
+async def display_one_frame(image):
+    bitmap = displayio.OnDiskBitmap(open(image, 'rb'))
+    group = displayio.Group()
+    group.append(
+        displayio.TileGrid(
+            bitmap,
+            pixel_shader=getattr(bitmap, 'pixel_shader', displayio.ColorConverter()),
+            width=1,
+            height=1,
+            tile_width=bitmap.width,
+            tile_height=bitmap.height,
+        )
+    )
+    DISPLAY.show(group)
+    time.sleep(0.5)
+    DISPLAY.refresh()
 
 
 class Session:
@@ -36,7 +80,7 @@ class Session:
     state: int = 0 # 0 - idel; 1 - operating; 2 - success
 
     @classmethod
-    def detect_upto_one_left_stroke(cls):
+    async def detect_upto_one_left_stroke(cls):
         i = cls.left_pointer
         j = 0 # button_stroke_name_pointer
         stroke_starts_from = -1
@@ -56,6 +100,8 @@ class Session:
         if j == 3 and cls.stimulation_left_log[i-1].received_at - cls.stimulation_left_log[stroke_starts_from].received_at < cls.velocity_goal:
             cls.left_stroke_count += 1
             cls.left_pointer = i
+            if cls.left_stroke_count < cls.strokes_goal:
+                await display_one_frame(image='rainbow.bmp')
 
 
 async def stimulator(button):
@@ -72,7 +118,7 @@ async def stimulator(button):
 
 
 async def orchestrator():
-    while(True):
+    while True:
         if Session.state == 0: # idle
             if Session.stimulation_left_log == []:
                 pass
@@ -99,8 +145,9 @@ async def orchestrator():
             else:
                 Session.state = 0
 
-        Session.detect_upto_one_left_stroke()
+        await Session.detect_upto_one_left_stroke()
         print(f"Left strokes: {Session.left_stroke_count}; state: {Session.state}")
+        await display_one_frame(image='frame_1.bmp')
         await asyncio.sleep(0.5)
 
 
