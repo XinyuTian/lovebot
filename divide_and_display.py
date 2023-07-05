@@ -36,52 +36,58 @@ matrix = rgbmatrix.RGBMatrix(
 DISPLAY = framebufferio.FramebufferDisplay(matrix, auto_refresh=True, rotation=180)
 
 
-class RGB_Api:
-    def __init__(
-        self,
-        image_1="smiley_0.bmp",
-        image_2="smiley_1.bmp",
-        text="Welcome to our home!",
+class Display:
+    # Set Text
+    text: str = "Welcome to our home! "
+    txt_color: int = 0x030B00
+    txt_x: int = 0
+    txt_y: int = 32
+    txt_font: str = terminalio.FONT
+    txt_line_spacing: int = 0.8
+    txt_scale: int = 1
+
+    # Set Images
+    image_idle_active_1: str = "images/idle-active-frame-1.bmp"
+    image_idle_low_1: str = "images/idle-low-frame-1.bmp"
+    image_idle_medium_1: str = "images/idle-medium-frame-1.bmp"
+    image_idle_high_1: str = "images/idle-high-frame-1.bmp"
+    image_stim_active_1: str = "images/stim-active-frame-1.bmp"
+    image_stim_low_1: str = "images/stim-low-frame-1.bmp"
+    image_stim_medium_1: str = "images/stim-medium-frame-1.bmp"
+    image_stim_high_1: str = "images/stim-high-frame-1.bmp"
+    image_height: int = 48
+
+    # Set speed
+    image_switch_speed = 2
+    text_scroll_speed = 30
+
+    @classmethod
+    async def display_images_and_text(
+        cls,
+        state: int = 1,
+        progress: str = None,
+        stimulation: bool = False,
     ):
-        # Set images
-        self.image_loc1_0 = image_1
-        self.image_loc1_1 = image_2
-        self.image_loc1_number = 0
 
-        # Set text
-        self.txt_str_single = text
-        self.txt_str = (self.txt_str_single + " ") * 4
-        self.txt_color = 0x030B00
-        self.txt_x = 0
-        self.txt_y = 32
-        self.txt_font = terminalio.FONT
-        self.txt_line_spacing = 0.8
-        self.txt_scale = 1
+        image = getattr(cls, f"image_{'stim' if stimulation else 'idle'}_{progress}_1")
 
-        # Set speed
-        self.switch_speed = 2
-        self.scroll_speed = 30
-        self.scroll_steps_per_switch = self.scroll_speed // self.switch_speed
-
-        # Set division
-        self.image_height = 48
-
-        # The following codes don't need to be set
-        if self.txt_font == terminalio.FONT:
-            self.txt_font = terminalio.FONT
-        else:
-            self.txt_font = bitmap_font.load_font(self.txt_font)
-        self.sroll_text = adafruit_display_text.label.Label(
-            self.txt_font,
-            color=self.txt_color,
-            line_spacing=self.txt_line_spacing,
-            scale=self.txt_scale,
-            text=self.txt_str,
+        bitmap = displayio.OnDiskBitmap(open(image, 'rb'))
+        group = displayio.Group()
+        group.append(
+            displayio.TileGrid(
+                bitmap,
+                pixel_shader=getattr(bitmap, 'pixel_shader', displayio.ColorConverter()),
+                width=1,
+                height=1,
+                tile_width=bitmap.width,
+                tile_height=bitmap.height,
+            )
         )
-        self.sroll_text.x = unit_width // 2
-        self.sroll_text.y = (unit_height + self.image_height) // 2
+        DISPLAY.show(group)
+        time.sleep(0.5)
+        DISPLAY.refresh()
 
-    def animate_image_and_scrolling_text(self):
+    def display_animated_images_and_scrolling_text(self, duration=None):
         group = displayio.Group()
         # set the images
         bitmap1_0 = displayio.OnDiskBitmap(open(self.image_loc1_0, "rb"))
@@ -91,7 +97,13 @@ class RGB_Api:
         text_length_pixel = self.sroll_text.bounding_box[2] - self.sroll_text.bounding_box[0]
         group.append(self.sroll_text)
 
+        if duration:
+            display_starts_at = time.time()
+
         while True:
+            if duration:
+                if time.time() - display_starts_at > duration:
+                    break
             # update the image
             self.image_loc1_number = 1 - self.image_loc1_number
             if self.image_loc1_number == 0:
@@ -123,3 +135,8 @@ class RGB_Api:
             DISPLAY.show(group)
             DISPLAY.refresh()
         pass
+
+
+if __name__ == "__main__":
+    RGB = RGB_display()
+    RGB.animate_image_and_scrolling_text()
