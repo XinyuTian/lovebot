@@ -49,6 +49,7 @@ class Button:
         self.number = number
         self.pin = pin
 
+
 ordered_button_numbers = [0, 1, 2]
 
 left_button_stroke_names = ["LEFT_1", "LEFT_2", "LEFT_3"]
@@ -63,12 +64,7 @@ button_r_3 = Button(right_button_stroke_names[2], 2, board.GP26)
 
 
 def categorize_session_progress(progress_percentage):
-    categories = {
-        (0, 10): "active",
-        (10, 33): "low",
-        (33, 66): "medium",
-        (66, 100): "high"
-    }
+    categories = {(0, 10): "active", (10, 33): "low", (33, 66): "medium", (66, 100): "high"}
     for interval, category in categories.items():
         if interval[0] <= progress_percentage < interval[1]:
             return category
@@ -100,12 +96,16 @@ class Session:
                 continue
             if cls.stimulation_log[i].button_number == ordered_button_numbers[j]:
                 j += 1
-            elif cls.stimulation_log[i].button_number == ordered_button_numbers[j-1]:
+            elif cls.stimulation_log[i].button_number == ordered_button_numbers[j - 1]:
                 pass
             else:
                 stroke_starts_from = i
             i += 1
-        if j == 3 and cls.stimulation_log[i-1].received_at - cls.stimulation_log[stroke_starts_from].received_at < cls.velocity_goal:
+        if (
+            j == 3
+            and cls.stimulation_log[i - 1].received_at - cls.stimulation_log[stroke_starts_from].received_at
+            < cls.velocity_goal
+        ):
             print(f"Left strokes: {Session.stroke_count}; state: {Session.state}")
             cls.stroke_count += 1
             cls.stimulation_evaluation_pointer = i
@@ -146,14 +146,11 @@ async def orchestrator():
                 Session.state = 2
             elif time.time() - Session.stimulation_log[-1].received_at > 30:
                 Session.state = 0
-        elif Session.state == 2:  # success
-            if time.time() - Session.session_succeeded_at < 5:
-                pass
-            elif time.time() - Session.session_succeeded_at < 30:
-                # display cool-down images:
-                pass
-            else:
-                Session.state = 0
+        elif Session.state == 2:  # success + cooldown
+            await asyncio.sleep(10)
+            Session.state = 3
+            await asyncio.sleep(20)
+            Session.state = 0
 
         await Session.detect_upto_one_stroke()
         print(f"Left strokes: {Session.stroke_count}; state: {Session.state}")
@@ -202,6 +199,7 @@ class Display:
     image_stim_low_frames: list = ["images/stim-low-frame-1.bmp", "images/stim-low-frame-2.bmp"]
     image_stim_medium_frames: list = ["images/stim-medium-frame-1.bmp", "images/stim-medium-frame-2.bmp"]
     image_stim_high_frames: list = ["images/stim-high-frame-1.bmp", "images/stim-high-frame-2.bmp"]
+    image_cool_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
     image_orgasm_frames: list = [
         "images/orgasm-frame-1.bmp",
         "images/orgasm-frame-2.bmp",
@@ -218,10 +216,7 @@ class Display:
     text_scroll_speed = 30
 
     @classmethod
-    async def display_images_and_text(
-        cls,
-        stimulation: bool = False,
-    ):
+    async def display_images_and_text(cls):
         image_idle_active_displays = [generate_image_display(image) for image in cls.image_idle_active_frames]
         image_idle_low_displays = [generate_image_display(image) for image in cls.image_idle_low_frames]
         image_idle_medium_displays = [generate_image_display(image) for image in cls.image_idle_medium_frames]
@@ -231,12 +226,14 @@ class Display:
         image_stim_low_displays = [generate_image_display(image) for image in cls.image_stim_low_frames]
         image_stim_medium_displays = [generate_image_display(image) for image in cls.image_stim_medium_frames]
         image_stim_high_displays = [generate_image_display(image) for image in cls.image_stim_high_frames]
+        image_cool_displays = [generate_image_display(image) for image in cls.image_cool_frames]
         image_displays_categories = {
             (1, "active"): image_idle_active_displays,
             (1, "low"): image_idle_low_displays,
             (1, "medium"): image_idle_medium_displays,
             (1, "high"): image_idle_high_displays,
             (2, "high"): image_orgasm_displays,
+            (3, "high"): image_cool_displays,
         }
         image_displays_stim_categories = {
             "active": image_stim_active_displays,
@@ -268,6 +265,16 @@ async def main():
     interrupt_task_r3 = asyncio.create_task(stimulator(button_r_3))
     display_task = asyncio.create_task(Display.display_images_and_text())
     looper_task = asyncio.create_task(orchestrator())
-    await asyncio.gather(looper_task, display_task, interrupt_task_l1, interrupt_task_l2, interrupt_task_l3, interrupt_task_r1, interrupt_task_r2, interrupt_task_r3)
+    await asyncio.gather(
+        looper_task,
+        display_task,
+        interrupt_task_l1,
+        interrupt_task_l2,
+        interrupt_task_l3,
+        interrupt_task_r1,
+        interrupt_task_r2,
+        interrupt_task_r3,
+    )
+
 
 asyncio.get_event_loop().run_until_complete(main())
