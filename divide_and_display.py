@@ -36,6 +36,19 @@ matrix = rgbmatrix.RGBMatrix(
 DISPLAY = framebufferio.FramebufferDisplay(matrix, auto_refresh=True, rotation=180)
 
 
+def generate_image_display(image):
+    bitmap = displayio.OnDiskBitmap(open(image, "rb"))
+    image_display = displayio.TileGrid(
+        bitmap,
+        pixel_shader=getattr(bitmap, "pixel_shader", displayio.ColorConverter()),
+        width=1,
+        height=1,
+        tile_width=bitmap.width,
+        tile_height=bitmap.height,
+    )
+    return image_display
+
+
 class Display:
     # Set Text
     text: str = "Welcome to our home! "
@@ -47,15 +60,25 @@ class Display:
     txt_scale: int = 1
 
     # Set Images
-    image_idle_active_1: str = "images/idle-active-frame-1.bmp"
-    image_idle_low_1: str = "images/idle-low-frame-1.bmp"
-    image_idle_medium_1: str = "images/idle-medium-frame-1.bmp"
-    image_idle_high_1: str = "images/idle-high-frame-1.bmp"
+    image_idle_active_frames: list = ["images/idle-active-frame-1.bmp", "images/idle-active-frame-2.bmp"]
+    image_idle_low_frames: str = ["images/idle-low-frame-1.bmp", "images/idle-low-frame-2.bmp"]
+    image_idle_medium_frames: str = ["images/idle-medium-frame-1.bmp", "images/idle-medium-frame-2.bmp"]
+    image_idle_high_frames: str = ["images/idle-high-frame-1.bmp", "images/idle-high-frame-2.bmp"]
     image_stim_active_1: str = "images/stim-active-frame-1.bmp"
     image_stim_low_1: str = "images/stim-low-frame-1.bmp"
     image_stim_medium_1: str = "images/stim-medium-frame-1.bmp"
     image_stim_high_1: str = "images/stim-high-frame-1.bmp"
+    image_orgasm_frames: list = [
+        "images/orgasm-frame-1.bmp",
+        "images/orgasm-frame-2.bmp",
+        "images/orgasm-frame-3.bmp",
+        "images/orgasm-frame-4.bmp",
+        "images/orgasm-frame-5.bmp",
+        "images/orgasm-frame-6.bmp",
+    ]
+    image_cooldown_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
     image_height: int = 48
+    index_image_alternating: int = 0
 
     # Set speed
     image_switch_speed = 2
@@ -72,24 +95,32 @@ class Display:
         if state == 0:
             group = displayio.Group()
             DISPLAY.show(group)
-        else:
-            image = getattr(cls, f"image_{'stim' if stimulation else 'idle'}_{progress}_1")
-
-            bitmap = displayio.OnDiskBitmap(open(image, 'rb'))
+        elif state == 1:
             group = displayio.Group()
-            group.append(
-                displayio.TileGrid(
-                    bitmap,
-                    pixel_shader=getattr(bitmap, 'pixel_shader', displayio.ColorConverter()),
-                    width=1,
-                    height=1,
-                    tile_width=bitmap.width,
-                    tile_height=bitmap.height,
-                )
-            )
+            if stimulation:
+                image = getattr(cls, f"image_stim_{progress}_1")
+                group.append(generate_image_display(image))
+                DISPLAY.show(group)
+                time.sleep(0.5)
+                DISPLAY.refresh()
+
+            image_displays = [generate_image_display(image) for image in getattr(cls, f"image_idle_{progress}_frames")]
+            group.append(image_displays[cls.index_image_alternating])
+            cls.index_image_alternating = 1 - cls.index_image_alternating
             DISPLAY.show(group)
             time.sleep(0.5)
             DISPLAY.refresh()
+            group.pop()
+        else:
+            image_displays = [generate_image_display(image) for image in cls.image_orgasm_frames]
+            for j in range(4):
+                group = displayio.Group()
+                for i in range(6):
+                    group.append(image_displays[i])
+                    DISPLAY.show(group)
+                    time.sleep(0.5)
+                    DISPLAY.refresh()
+                    group.pop()
 
     def display_animated_images_and_scrolling_text(self, duration=None):
         group = displayio.Group()
