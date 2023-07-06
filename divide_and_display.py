@@ -69,23 +69,27 @@ class Display:
         stimulation: bool = False,
     ):
 
-        image = getattr(cls, f"image_{'stim' if stimulation else 'idle'}_{progress}_1")
+        if state == 0:
+            group = displayio.Group()
+            DISPLAY.show(group)
+        else:
+            image = getattr(cls, f"image_{'stim' if stimulation else 'idle'}_{progress}_1")
 
-        bitmap = displayio.OnDiskBitmap(open(image, 'rb'))
-        group = displayio.Group()
-        group.append(
-            displayio.TileGrid(
-                bitmap,
-                pixel_shader=getattr(bitmap, 'pixel_shader', displayio.ColorConverter()),
-                width=1,
-                height=1,
-                tile_width=bitmap.width,
-                tile_height=bitmap.height,
+            bitmap = displayio.OnDiskBitmap(open(image, 'rb'))
+            group = displayio.Group()
+            group.append(
+                displayio.TileGrid(
+                    bitmap,
+                    pixel_shader=getattr(bitmap, 'pixel_shader', displayio.ColorConverter()),
+                    width=1,
+                    height=1,
+                    tile_width=bitmap.width,
+                    tile_height=bitmap.height,
+                )
             )
-        )
-        DISPLAY.show(group)
-        time.sleep(0.5)
-        DISPLAY.refresh()
+            DISPLAY.show(group)
+            time.sleep(0.5)
+            DISPLAY.refresh()
 
     def display_animated_images_and_scrolling_text(self, duration=None):
         group = displayio.Group()
