@@ -5,7 +5,7 @@ import displayio
 import framebufferio
 import rgbmatrix
 import time
-from divide_and_display import Display
+import terminalio
 
 
 bit_depth_value = 6
@@ -85,6 +85,7 @@ class Session:
     session_succeeded_at: timestamp
     state: int = 0  # 0 - idel; 1 - operating; 2 - success
     progress: str = "active"
+    stimulation: bool = False
 
     @classmethod
     async def detect_upto_one_stroke(cls):
@@ -110,7 +111,7 @@ class Session:
             cls.stimulation_evaluation_pointer = i
             cls.progress = categorize_session_progress(cls.stroke_count / cls.strokes_goal * 100)
             if cls.stroke_count < cls.strokes_goal:
-                await Display.display_images_and_text(state=cls.state, progress=cls.progress, stimulation=True)
+                Session.stimulation = True
 
 
 async def stimulator(button):
@@ -147,7 +148,6 @@ async def orchestrator():
                 Session.state = 0
         elif Session.state == 2:  # success
             if time.time() - Session.session_succeeded_at < 5:
-                # await Display.display_images_and_text(display_type="alternation")
                 pass
             elif time.time() - Session.session_succeeded_at < 30:
                 # display cool-down images:
@@ -157,8 +157,106 @@ async def orchestrator():
 
         await Session.detect_upto_one_stroke()
         print(f"Left strokes: {Session.stroke_count}; state: {Session.state}")
-        await Display.display_images_and_text(state=Session.state, progress=Session.progress)
         await asyncio.sleep(0.5)
+
+
+def generate_image_display(image):
+    bitmap = displayio.OnDiskBitmap(open(image, "rb"))
+    image_display = displayio.TileGrid(
+        bitmap,
+        pixel_shader=getattr(bitmap, "pixel_shader", displayio.ColorConverter()),
+        width=1,
+        height=1,
+        tile_width=bitmap.width,
+        tile_height=bitmap.height,
+    )
+    return image_display
+
+
+async def display_animated_flames(image_displays):
+    for frame in image_displays:
+        group = displayio.Group()
+        group.append(frame)
+        DISPLAY.show(group)
+        await asyncio.sleep(0.5)
+        DISPLAY.refresh()
+        group.pop()
+
+
+class Display:
+    # Set Text
+    text: str = "Welcome to our home! "
+    txt_color: int = 0x030B00
+    txt_x: int = 0
+    txt_y: int = 32
+    txt_font: str = terminalio.FONT
+    txt_line_spacing: int = 0.8
+    txt_scale: int = 1
+
+    # Set Images
+    image_idle_active_frames: list = ["images/idle-active-frame-1.bmp", "images/idle-active-frame-2.bmp"]
+    image_idle_low_frames: list = ["images/idle-low-frame-1.bmp", "images/idle-low-frame-2.bmp"]
+    image_idle_medium_frames: list = ["images/idle-medium-frame-1.bmp", "images/idle-medium-frame-2.bmp"]
+    image_idle_high_frames: list = ["images/idle-high-frame-1.bmp", "images/idle-high-frame-2.bmp"]
+    image_stim_active_frames: list = ["images/stim-active-frame-1.bmp", "images/stim-active-frame-2.bmp"]
+    image_stim_low_frames: list = ["images/stim-low-frame-1.bmp", "images/stim-low-frame-2.bmp"]
+    image_stim_medium_frames: list = ["images/stim-medium-frame-1.bmp", "images/stim-medium-frame-2.bmp"]
+    image_stim_high_frames: list = ["images/stim-high-frame-1.bmp", "images/stim-high-frame-2.bmp"]
+    image_orgasm_frames: list = [
+        "images/orgasm-frame-1.bmp",
+        "images/orgasm-frame-2.bmp",
+        "images/orgasm-frame-3.bmp",
+        "images/orgasm-frame-4.bmp",
+        "images/orgasm-frame-5.bmp",
+        "images/orgasm-frame-6.bmp",
+    ]
+    image_cooldown_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
+    image_height: int = 48
+
+    # Set speed
+    image_switch_speed = 2
+    text_scroll_speed = 30
+
+    @classmethod
+    async def display_images_and_text(
+        cls,
+        stimulation: bool = False,
+    ):
+        image_idle_active_displays = [generate_image_display(image) for image in cls.image_idle_active_frames]
+        image_idle_low_displays = [generate_image_display(image) for image in cls.image_idle_low_frames]
+        image_idle_medium_displays = [generate_image_display(image) for image in cls.image_idle_medium_frames]
+        image_idle_high_displays = [generate_image_display(image) for image in cls.image_idle_high_frames]
+        image_orgasm_displays = [generate_image_display(image) for image in cls.image_orgasm_frames]
+        image_stim_active_displays = [generate_image_display(image) for image in cls.image_stim_active_frames]
+        image_stim_low_displays = [generate_image_display(image) for image in cls.image_stim_low_frames]
+        image_stim_medium_displays = [generate_image_display(image) for image in cls.image_stim_medium_frames]
+        image_stim_high_displays = [generate_image_display(image) for image in cls.image_stim_high_frames]
+        image_displays_categories = {
+            (1, "active"): image_idle_active_displays,
+            (1, "low"): image_idle_low_displays,
+            (1, "medium"): image_idle_medium_displays,
+            (1, "high"): image_idle_high_displays,
+            (2, "high"): image_orgasm_displays,
+        }
+        image_displays_stim_categories = {
+            "active": image_stim_active_displays,
+            "low": image_stim_low_displays,
+            "medium": image_stim_medium_displays,
+            "high": image_stim_high_displays,
+        }
+
+        while True:
+            if Session.state == 0:
+                group = displayio.Group()
+                DISPLAY.show(group)
+                await asyncio.sleep(0.5)
+            else:
+                if Session.stimulation:
+                    image_displays = image_displays_stim_categories[Session.progress]
+                    Session.stimulation = False
+                else:
+                    image_displays = image_displays_categories[(Session.state, Session.progress)]
+                await display_animated_flames(image_displays)
 
 
 async def main():
@@ -168,7 +266,8 @@ async def main():
     interrupt_task_r1 = asyncio.create_task(stimulator(button_r_1))
     interrupt_task_r2 = asyncio.create_task(stimulator(button_r_2))
     interrupt_task_r3 = asyncio.create_task(stimulator(button_r_3))
+    display_task = asyncio.create_task(Display.display_images_and_text())
     looper_task = asyncio.create_task(orchestrator())
-    await asyncio.gather(looper_task, interrupt_task_l1, interrupt_task_l2, interrupt_task_l3, interrupt_task_r1, interrupt_task_r2, interrupt_task_r3)
+    await asyncio.gather(looper_task, display_task, interrupt_task_l1, interrupt_task_l2, interrupt_task_l3, interrupt_task_r1, interrupt_task_r2, interrupt_task_r3)
 
 asyncio.get_event_loop().run_until_complete(main())
