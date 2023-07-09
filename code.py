@@ -6,6 +6,7 @@ import framebufferio
 import rgbmatrix
 import time
 import terminalio
+import adafruit_display_text.label
 
 
 bit_depth_value = 6
@@ -106,7 +107,6 @@ class Session:
             and cls.stimulation_log[i - 1].received_at - cls.stimulation_log[stroke_starts_from].received_at
             < cls.velocity_goal
         ):
-            print(f"Left strokes: {Session.stroke_count}; state: {Session.state}")
             cls.stroke_count += 1
             cls.stimulation_evaluation_pointer = i
             cls.progress = categorize_session_progress(cls.stroke_count / cls.strokes_goal * 100)
@@ -133,8 +133,6 @@ async def orchestrator():
             if Session.stimulation_log == []:
                 pass
             elif time.time() - Session.stimulation_log[-1].received_at < 1:
-                print(f"current time: {time.time()}")
-                print(f"button time: {Session.stimulation_log[-1].received_at}")
                 Session.state = 1
                 Session.progress = "active"
                 Session.stimulation_log = [Session.stimulation_log[-1]]
@@ -170,9 +168,9 @@ def generate_image_display(image):
     return image_display
 
 
-async def display_animated_flames(image_displays):
+async def display_animated_frames(image_displays):
+    group = displayio.Group()
     for frame in image_displays:
-        group = displayio.Group()
         group.append(frame)
         DISPLAY.show(group)
         await asyncio.sleep(0.5)
@@ -180,15 +178,35 @@ async def display_animated_flames(image_displays):
         group.pop()
 
 
+async def display_scrolling_text(sroll_text):
+    group_text = displayio.Group()
+    group_text.append(sroll_text)
+    DISPLAY.show(group_text)
+    for i in range(Display.scroll_steps_per_switch):
+        x = sroll_text.x - 1
+        if x < sroll_text.bounding_box[0] - sroll_text.bounding_box[2]:
+            x = DISPLAY.width // 2
+        sroll_text.x = x
+        await asyncio.sleep(1 / Display.text_scroll_speed)
+    DISPLAY.refresh()
+
+
 class Display:
     # Set Text
     text: str = "Welcome to our home! "
     txt_color: int = 0x030B00
-    txt_x: int = 0
-    txt_y: int = 32
     txt_font: str = terminalio.FONT
     txt_line_spacing: int = 0.8
     txt_scale: int = 1
+    sroll_text = adafruit_display_text.label.Label(
+        txt_font,
+        color=txt_color,
+        line_spacing=txt_line_spacing,
+        scale=txt_scale,
+        text=(text + " ") * 4,
+    )
+    sroll_text.x = unit_width // 2
+    sroll_text.y = 56
 
     # Set Images
     image_idle_active_frames: list = ["images/idle-active-frame-1.bmp", "images/idle-active-frame-2.bmp"]
@@ -214,6 +232,7 @@ class Display:
     # Set speed
     image_switch_speed = 2
     text_scroll_speed = 30
+    scroll_steps_per_switch = text_scroll_speed // image_switch_speed
 
     @classmethod
     async def display_images_and_text(cls):
@@ -241,6 +260,14 @@ class Display:
             "medium": image_stim_medium_displays,
             "high": image_stim_high_displays,
         }
+        text_categories = {
+            (1, "active"): "This is the active state",
+            (1, "low"): "This is the low state",
+            (1, "medium"): "This is medium state, and this sentence is long. ",
+            (1, "high"): "This is the high state",
+            (2, "high"): "Amazing!!! This is the orgasm state. Congrats! ",
+            (3, "high"): "I'm cooling down. Leave me alone.",
+        }
 
         while True:
             if Session.state == 0:
@@ -253,7 +280,10 @@ class Display:
                     Session.stimulation = False
                 else:
                     image_displays = image_displays_categories[(Session.state, Session.progress)]
-                await display_animated_flames(image_displays)
+                # cls.sroll_text.text = (text_categories[(Session.state, Session.progress)] + " ") * 4,
+
+                await display_animated_frames(image_displays)
+                # await display_scrolling_text(cls.sroll_text)
 
 
 async def main():
