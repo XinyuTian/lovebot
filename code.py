@@ -113,6 +113,30 @@ class Session:
             if cls.stroke_count < cls.strokes_goal:
                 Session.stimulation = True
 
+    @classmethod
+    async def update_state(cls):
+        if cls.state == 0:  # idle
+            if cls.stimulation_log == []:
+                pass
+            elif time.time() - cls.stimulation_log[-1].received_at < 1:
+                cls.state = 1
+                cls.progress = "active"
+                cls.stimulation_log = [cls.stimulation_log[-1]]
+                cls.stroke_count = 0
+                cls.stimulation_evaluation_pointer = 0
+        elif cls.state == 1:  # active
+            if cls.stroke_count >= cls.strokes_goal:
+                cls.session_succeeded_at = time.time()
+                cls.state = 2
+            elif time.time() - cls.stimulation_log[-1].received_at > 30:
+                cls.state = 0
+        elif cls.state == 2:  # success + cooldown
+            await asyncio.sleep(10)
+            cls.state = 3
+            await asyncio.sleep(20)
+            cls.state = 0
+        print(f"Left strokes: {cls.stroke_count}; state: {cls.state}")
+
 
 async def stimulator(button):
     """Print a message when pin goes low and when it goes high."""
@@ -129,29 +153,8 @@ async def stimulator(button):
 
 async def orchestrator():
     while True:
-        if Session.state == 0:  # idle
-            if Session.stimulation_log == []:
-                pass
-            elif time.time() - Session.stimulation_log[-1].received_at < 1:
-                Session.state = 1
-                Session.progress = "active"
-                Session.stimulation_log = [Session.stimulation_log[-1]]
-                Session.stroke_count = 0
-                Session.stimulation_evaluation_pointer = 0
-        elif Session.state == 1:  # active
-            if Session.stroke_count >= Session.strokes_goal:
-                Session.session_succeeded_at = time.time()
-                Session.state = 2
-            elif time.time() - Session.stimulation_log[-1].received_at > 30:
-                Session.state = 0
-        elif Session.state == 2:  # success + cooldown
-            await asyncio.sleep(10)
-            Session.state = 3
-            await asyncio.sleep(20)
-            Session.state = 0
-
+        await Session.update_state()
         await Session.detect_upto_one_stroke()
-        print(f"Left strokes: {Session.stroke_count}; state: {Session.state}")
         await asyncio.sleep(0.5)
 
 
@@ -178,19 +181,6 @@ async def display_animated_frames(image_displays):
         group.pop()
 
 
-async def display_scrolling_text(sroll_text):
-    group_text = displayio.Group()
-    group_text.append(sroll_text)
-    DISPLAY.show(group_text)
-    for i in range(Display.scroll_steps_per_switch):
-        x = sroll_text.x - 1
-        if x < sroll_text.bounding_box[0] - sroll_text.bounding_box[2]:
-            x = DISPLAY.width // 2
-        sroll_text.x = x
-        await asyncio.sleep(1 / Display.text_scroll_speed)
-    DISPLAY.refresh()
-
-
 class Display:
     # Set Text
     text: str = "Welcome to our home! "
@@ -207,6 +197,14 @@ class Display:
     )
     sroll_text.x = unit_width // 2
     sroll_text.y = 56
+    text_categories = {
+        (1, "active"): "This is the active state",
+        (1, "low"): "This is the low state",
+        (1, "medium"): "This is medium state, and this sentence is long. ",
+        (1, "high"): "This is the high state",
+        (2, "high"): "Amazing!!! This is the orgasm state. Congrats! ",
+        (3, "high"): "I'm cooling down. Leave me alone.",
+    }
 
     # Set Images
     image_idle_active_frames: list = ["images/idle-active-frame-1.bmp", "images/idle-active-frame-2.bmp"]
@@ -228,7 +226,30 @@ class Display:
     ]
     image_cooldown_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
     image_height: int = 48
-
+    image_idle_active_displays = [generate_image_display(image) for image in image_idle_active_frames]
+    image_idle_low_displays = [generate_image_display(image) for image in image_idle_low_frames]
+    image_idle_medium_displays = [generate_image_display(image) for image in image_idle_medium_frames]
+    image_idle_high_displays = [generate_image_display(image) for image in image_idle_high_frames]
+    image_orgasm_displays = [generate_image_display(image) for image in image_orgasm_frames]
+    image_stim_active_displays = [generate_image_display(image) for image in image_stim_active_frames]
+    image_stim_low_displays = [generate_image_display(image) for image in image_stim_low_frames]
+    image_stim_medium_displays = [generate_image_display(image) for image in image_stim_medium_frames]
+    image_stim_high_displays = [generate_image_display(image) for image in image_stim_high_frames]
+    image_cool_displays = [generate_image_display(image) for image in image_cool_frames]
+    image_displays_categories = {
+        (1, "active"): image_idle_active_displays,
+        (1, "low"): image_idle_low_displays,
+        (1, "medium"): image_idle_medium_displays,
+        (1, "high"): image_idle_high_displays,
+        (2, "high"): image_orgasm_displays,
+        (3, "high"): image_cool_displays,
+    }
+    image_displays_stim_categories = {
+        "active": image_stim_active_displays,
+        "low": image_stim_low_displays,
+        "medium": image_stim_medium_displays,
+        "high": image_stim_high_displays,
+    }
     # Set speed
     image_switch_speed = 2
     text_scroll_speed = 30
@@ -236,38 +257,6 @@ class Display:
 
     @classmethod
     async def display_images_and_text(cls):
-        image_idle_active_displays = [generate_image_display(image) for image in cls.image_idle_active_frames]
-        image_idle_low_displays = [generate_image_display(image) for image in cls.image_idle_low_frames]
-        image_idle_medium_displays = [generate_image_display(image) for image in cls.image_idle_medium_frames]
-        image_idle_high_displays = [generate_image_display(image) for image in cls.image_idle_high_frames]
-        image_orgasm_displays = [generate_image_display(image) for image in cls.image_orgasm_frames]
-        image_stim_active_displays = [generate_image_display(image) for image in cls.image_stim_active_frames]
-        image_stim_low_displays = [generate_image_display(image) for image in cls.image_stim_low_frames]
-        image_stim_medium_displays = [generate_image_display(image) for image in cls.image_stim_medium_frames]
-        image_stim_high_displays = [generate_image_display(image) for image in cls.image_stim_high_frames]
-        image_cool_displays = [generate_image_display(image) for image in cls.image_cool_frames]
-        image_displays_categories = {
-            (1, "active"): image_idle_active_displays,
-            (1, "low"): image_idle_low_displays,
-            (1, "medium"): image_idle_medium_displays,
-            (1, "high"): image_idle_high_displays,
-            (2, "high"): image_orgasm_displays,
-            (3, "high"): image_cool_displays,
-        }
-        image_displays_stim_categories = {
-            "active": image_stim_active_displays,
-            "low": image_stim_low_displays,
-            "medium": image_stim_medium_displays,
-            "high": image_stim_high_displays,
-        }
-        text_categories = {
-            (1, "active"): "This is the active state",
-            (1, "low"): "This is the low state",
-            (1, "medium"): "This is medium state, and this sentence is long. ",
-            (1, "high"): "This is the high state",
-            (2, "high"): "Amazing!!! This is the orgasm state. Congrats! ",
-            (3, "high"): "I'm cooling down. Leave me alone.",
-        }
 
         while True:
             if Session.state == 0:
@@ -276,14 +265,13 @@ class Display:
                 await asyncio.sleep(0.5)
             else:
                 if Session.stimulation:
-                    image_displays = image_displays_stim_categories[Session.progress]
+                    image_displays = cls.image_displays_stim_categories[Session.progress]
                     Session.stimulation = False
                 else:
-                    image_displays = image_displays_categories[(Session.state, Session.progress)]
+                    image_displays = cls.image_displays_categories[(Session.state, Session.progress)]
                 # cls.sroll_text.text = (text_categories[(Session.state, Session.progress)] + " ") * 4,
 
                 await display_animated_frames(image_displays)
-                # await display_scrolling_text(cls.sroll_text)
 
 
 async def main():
