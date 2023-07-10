@@ -7,7 +7,10 @@ import rgbmatrix
 import time
 import terminalio
 import adafruit_display_text.label
-
+import array
+import math
+import audiocore
+import audiobusio
 
 bit_depth_value = 6
 unit_width = 64
@@ -74,7 +77,7 @@ def categorize_session_progress(progress_percentage):
 
 class Session:
     stimulation_log: list = []
-    strokes_goal: int = 3
+    strokes_goal: int = 60
     velocity_goal: int = 3
     stimulation_evaluation_pointer: int = 0
     stroke_count: int = 0
@@ -112,6 +115,9 @@ class Session:
             cls.progress = categorize_session_progress(cls.stroke_count / cls.strokes_goal * 100)
             if cls.stroke_count < cls.strokes_goal:
                 Session.stimulation = True
+        if len(Session.stimulation_log) > 110:
+            cls.stimulation_log = cls.stimulation_log[100:]
+            cls.stimulation_evaluation_pointer -= 100
 
     @classmethod
     async def update_state(cls):
@@ -131,10 +137,12 @@ class Session:
             elif time.time() - cls.stimulation_log[-1].received_at > 30:
                 cls.state = 0
         elif cls.state == 2:  # success + cooldown
-            await asyncio.sleep(10)
+            await asyncio.sleep(20)
             cls.state = 3
             await asyncio.sleep(20)
             cls.state = 0
+            cls.stimulation_log = [cls.stimulation_log[-1]]
+            cls.stimulation_evaluation_pointer = 0
         print(f"Left strokes: {cls.stroke_count}; state: {cls.state}")
 
 
@@ -153,9 +161,54 @@ async def stimulator(button):
 
 async def orchestrator():
     while True:
-        await Session.update_state()
         await Session.detect_upto_one_stroke()
+        await Session.update_state()
         await asyncio.sleep(0.5)
+
+
+async def beeper():
+    audio = audiobusio.I2SOut(board.GP0, board.GP1, board.GP15)
+    # mp3 = audiomp3.MP3Decoder(open("beep.mp3", "rb"))
+    tone_volume = 0.1  # Increase this to increase the volume of the tone.
+    frequency = 440  # Set this to the Hz of the tone you want to generate.
+    length = 8000 // frequency
+    sine_wave = array.array("h", [0] * length)
+    for i in range(length):
+        sine_wave[i] = int((math.sin(math.pi * 2 * i / length)) * tone_volume * (2**15 - 1))
+    sine_wave_sample = audiocore.RawSample(sine_wave)
+
+    while True:
+        await asyncio.sleep(0.5)
+        if Session.stimulation == True:
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.2)
+            audio.stop()
+            # audio.play(mp3)
+        elif Session.state == 2:
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
+            audio.play(sine_wave_sample, loop=True)
+            await asyncio.sleep(0.1)
+            audio.stop()
+            await asyncio.sleep(0.1)
 
 
 def generate_image_display(image):
@@ -171,39 +224,41 @@ def generate_image_display(image):
     return image_display
 
 
-async def display_animated_frames(image_displays):
-    group = displayio.Group()
-    for frame in image_displays:
-        group.append(frame)
-        DISPLAY.show(group)
-        await asyncio.sleep(0.5)
-        DISPLAY.refresh()
-        group.pop()
-
-
 class Display:
-    # Set Text
-    text: str = "Welcome to our home! "
-    txt_color: int = 0x030B00
-    txt_font: str = terminalio.FONT
-    txt_line_spacing: int = 0.8
-    txt_scale: int = 1
-    sroll_text = adafruit_display_text.label.Label(
-        txt_font,
-        color=txt_color,
-        line_spacing=txt_line_spacing,
-        scale=txt_scale,
-        text=(text + " ") * 4,
-    )
-    sroll_text.x = unit_width // 2
-    sroll_text.y = 56
     text_categories = {
-        (1, "active"): "This is the active state",
-        (1, "low"): "This is the low state",
-        (1, "medium"): "This is medium state, and this sentence is long. ",
-        (1, "high"): "This is the high state",
-        (2, "high"): "Amazing!!! This is the orgasm state. Congrats! ",
-        (3, "high"): "I'm cooling down. Leave me alone.",
+        (
+            1,
+            "active",
+        ): "STROKE MY BUTTONS BOT WANT PLEASURE STROKE MY BUTTONS BOT WANT PLEASURE STROKE MY BUTTONS BOT WANT PLEASURE",
+        (
+            1,
+            "low",
+        ): "YES JUST LIKE THAT BOT WANTS MORE YES JUST LIKE THAT BOT WANTS MORE YES JUST LIKE THAT BOT WANTS MORE",
+        (
+            1,
+            "medium",
+        ): "BOT IS HAPPY KEEP GOING PLZ BOT IS HAPPY KEEP GOING PLZ BOT IS HAPPY KEEP GOING PLZ BOT IS HAPPY KEEP GOING PLZ",
+        (
+            1,
+            "high",
+        ): "AHH~ AHH~ BOT HAPPY AHH~ AHH~ BOT HAPPY AHH~ AHH~ BOT HAPPY AHH~ AHH~ BOT HAPPY AHH~ AHH~ BOT HAPPY AHH~ AHH~ BOT HAPPY ",
+        (
+            2,
+            "high",
+        ): "OMG <3 OMG <3 OMG <3 OMG <3 OMG OMG <3 OMG <3 OMG <3 OMG <3 OMG OMG <3 OMG <3 OMG <3 OMG <3 OMG OMG <3 OMG <3 OMG <3 OMG <3 OMG ",
+        (
+            3,
+            "high",
+        ): "BOT IS TIRED... LEAVE BOT ALONE... BOT IS TIRED... LEAVE BOT ALONE... BOT IS TIRED... LEAVE BOT ALONE... BOT IS TIRED... LEAVE BOT ALONE...",
+    }
+
+    text_categories_ptrs = {
+        (1, "active"): 0,
+        (1, "low"): 1,
+        (1, "medium"): 2,
+        (1, "high"): 3,
+        (2, "high"): 4,
+        (3, "high"): 5,
     }
 
     # Set Images
@@ -250,28 +305,100 @@ class Display:
         "medium": image_stim_medium_displays,
         "high": image_stim_high_displays,
     }
-    # Set speed
-    image_switch_speed = 2
-    text_scroll_speed = 30
-    scroll_steps_per_switch = text_scroll_speed // image_switch_speed
 
     @classmethod
     async def display_images_and_text(cls):
+        # Set Text
+        txt_color: int = 0x030B00
+        txt_font: str = terminalio.FONT
+        txt_line_spacing: int = 0.8
+        txt_scale: int = 1
+        sroll_text = adafruit_display_text.label.Label(
+            txt_font,
+            color=txt_color,
+            line_spacing=txt_line_spacing,
+            scale=txt_scale,
+            text="",
+        )
+        sroll_text.x = 14
+        sroll_text.y = 56
+        group = displayio.Group()
+        group.append(sroll_text)
+        DISPLAY.show(group)
+
+        current_text_ptr = 999
+
+        # use this to track stimulation frames
+        stimulation_display_progress = 0
+        normal_display_progress = 0
+        normal_display_buffer = 10
+
+        # TODO: replace this filler with a GLITCH IMAGE
+        # group.append(GLITCH)
+        group.append(cls.image_idle_high_displays[1])  # buffer for the first removal
 
         while True:
             if Session.state == 0:
-                group = displayio.Group()
-                DISPLAY.show(group)
-                await asyncio.sleep(0.5)
-            else:
-                if Session.stimulation:
-                    image_displays = cls.image_displays_stim_categories[Session.progress]
+                if len(group) > 1:
+                    group.pop()
+                    sroll_text.text = ""
+                await asyncio.sleep(0.1)
+                continue
+
+            # Update text if needed
+            if current_text_ptr != cls.text_categories_ptrs[(Session.state, Session.progress)]:
+                current_text_ptr = cls.text_categories_ptrs[(Session.state, Session.progress)]
+                sroll_text.text = cls.text_categories[(Session.state, Session.progress)]
+
+            # update the text scroll position
+            x = sroll_text.x - 2
+            if x < -300:
+                x = 14
+            sroll_text.x = x
+
+            # find the next frame to display
+            if Session.stimulation:
+                frame = cls.image_displays_stim_categories[Session.progress][stimulation_display_progress]
+                if stimulation_display_progress == 1:
+                    stimulation_display_progress = 0
                     Session.stimulation = False
                 else:
-                    image_displays = cls.image_displays_categories[(Session.state, Session.progress)]
-                # cls.sroll_text.text = (text_categories[(Session.state, Session.progress)] + " ") * 4,
+                    stimulation_display_progress += 1
+            elif Session.state == 2:  # ORGASM
+                if normal_display_progress < 10:
+                    frame_number = 0
+                elif normal_display_progress < 20:
+                    frame_number = 1
+                elif normal_display_progress < 30:
+                    frame_number = 2
+                elif normal_display_progress < 40:
+                    frame_number = 3
+                elif normal_display_progress < 50:
+                    frame_number = 4
+                else:
+                    frame_number = 5
+                    if normal_display_progress > 60:
+                        normal_display_progress = 0
+                normal_display_progress += 1
+                frame = cls.image_displays_categories[(Session.state, Session.progress)][frame_number]
+            else:
+                if normal_display_progress > 0:
+                    frame_number = 0
+                    normal_display_progress += 1
+                    if normal_display_progress > normal_display_buffer:
+                        normal_display_progress = -1
+                else:
+                    frame_number = 1
+                    normal_display_progress -= 1
+                    if normal_display_progress < -normal_display_buffer:
+                        normal_display_progress = 1
+                frame = cls.image_displays_categories[(Session.state, Session.progress)][frame_number]
 
-                await display_animated_frames(image_displays)
+            # Now, display the new frame
+            if len(group) > 1:
+                group.pop()
+            group.append(frame)
+            await asyncio.sleep(0.01)
 
 
 async def main():
@@ -283,7 +410,9 @@ async def main():
     interrupt_task_r3 = asyncio.create_task(stimulator(button_r_3))
     display_task = asyncio.create_task(Display.display_images_and_text())
     looper_task = asyncio.create_task(orchestrator())
+    beeper_task = asyncio.create_task(beeper())
     await asyncio.gather(
+        beeper_task,
         looper_task,
         display_task,
         interrupt_task_l1,
