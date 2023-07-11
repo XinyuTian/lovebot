@@ -68,7 +68,7 @@ button_r_3 = Button(right_button_stroke_names[2], 2, board.GP26)
 
 
 def categorize_session_progress(progress_percentage):
-    categories = {(0, 10): "active", (10, 33): "low", (33, 66): "medium", (66, 100): "high"}
+    categories = {(0, 5): "active", (5, 33): "low", (33, 66): "medium", (66, 100): "high"}
     for interval, category in categories.items():
         if interval[0] <= progress_percentage < interval[1]:
             return category
@@ -181,34 +181,33 @@ async def beeper():
         await asyncio.sleep(0.5)
         if Session.stimulation == True:
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
             audio.stop()
             # audio.play(mp3)
         elif Session.state == 2:
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
             audio.stop()
             await asyncio.sleep(0.1)
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             audio.stop()
             await asyncio.sleep(0.1)
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
             audio.stop()
             await asyncio.sleep(0.1)
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             audio.stop()
             await asyncio.sleep(0.1)
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
             audio.stop()
             await asyncio.sleep(0.1)
             audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             audio.stop()
-            await asyncio.sleep(0.1)
 
 
 def generate_image_display(image):
@@ -262,37 +261,32 @@ class Display:
     }
 
     # Set Images
-    image_idle_active_frames: list = ["images/idle-active-frame-1.bmp", "images/idle-active-frame-2.bmp"]
-    image_idle_low_frames: list = ["images/idle-low-frame-1.bmp", "images/idle-low-frame-2.bmp"]
-    image_idle_medium_frames: list = ["images/idle-medium-frame-1.bmp", "images/idle-medium-frame-2.bmp"]
-    image_idle_high_frames: list = ["images/idle-high-frame-1.bmp", "images/idle-high-frame-2.bmp"]
-    image_stim_active_frames: list = ["images/stim-active-frame-1.bmp", "images/stim-active-frame-2.bmp"]
-    image_stim_low_frames: list = ["images/stim-low-frame-1.bmp", "images/stim-low-frame-2.bmp"]
-    image_stim_medium_frames: list = ["images/stim-medium-frame-1.bmp", "images/stim-medium-frame-2.bmp"]
-    image_stim_high_frames: list = ["images/stim-high-frame-1.bmp", "images/stim-high-frame-2.bmp"]
-    image_cool_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
+    image_idle_low_frames: list = ["images/low-idle-0.bmp", "images/low-idle-1.bmp"]
+    image_idle_medium_frames: list = ["images/med-idle-0.bmp", "images/med-idle-1.bmp"]
+    image_idle_high_frames: list = ["images/high-idle-0.bmp", "images/high-idle-1.bmp"]
+    image_stim_low_frames: list = ["images/low-stim-0.bmp", "images/low-stim-1.bmp"]
+    image_stim_medium_frames: list = ["images/med-stim-0.bmp", "images/med-stim-1.bmp"]
+    image_stim_high_frames: list = ["images/high-stim-0.bmp", "images/high-stim-1.bmp"]
+    image_cool_frames: list = ["images/cool-idle-0.bmp", "images/cool-idle-1.bmp"]
     image_orgasm_frames: list = [
-        "images/orgasm-frame-1.bmp",
-        "images/orgasm-frame-2.bmp",
-        "images/orgasm-frame-3.bmp",
-        "images/orgasm-frame-4.bmp",
-        "images/orgasm-frame-5.bmp",
-        "images/orgasm-frame-6.bmp",
+        "images/orgasm-0.bmp",
+        "images/orgasm-1.bmp",
+        "images/orgasm-2.bmp",
+        "images/orgasm-3.bmp",
+        "images/orgasm-4.bmp",
+        "images/orgasm-5.bmp",
     ]
-    image_cooldown_frames: list = ["images/cool-frame-1.bmp", "images/cool-frame-2.bmp"]
     image_height: int = 48
-    image_idle_active_displays = [generate_image_display(image) for image in image_idle_active_frames]
     image_idle_low_displays = [generate_image_display(image) for image in image_idle_low_frames]
     image_idle_medium_displays = [generate_image_display(image) for image in image_idle_medium_frames]
     image_idle_high_displays = [generate_image_display(image) for image in image_idle_high_frames]
     image_orgasm_displays = [generate_image_display(image) for image in image_orgasm_frames]
-    image_stim_active_displays = [generate_image_display(image) for image in image_stim_active_frames]
     image_stim_low_displays = [generate_image_display(image) for image in image_stim_low_frames]
     image_stim_medium_displays = [generate_image_display(image) for image in image_stim_medium_frames]
     image_stim_high_displays = [generate_image_display(image) for image in image_stim_high_frames]
     image_cool_displays = [generate_image_display(image) for image in image_cool_frames]
     image_displays_categories = {
-        (1, "active"): image_idle_active_displays,
+        (1, "active"): image_idle_low_displays,
         (1, "low"): image_idle_low_displays,
         (1, "medium"): image_idle_medium_displays,
         (1, "high"): image_idle_high_displays,
@@ -300,7 +294,7 @@ class Display:
         (3, "high"): image_cool_displays,
     }
     image_displays_stim_categories = {
-        "active": image_stim_active_displays,
+        "active": image_stim_low_displays,
         "low": image_stim_low_displays,
         "medium": image_stim_medium_displays,
         "high": image_stim_high_displays,
