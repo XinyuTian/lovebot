@@ -85,7 +85,8 @@ class Session:
     session_succeeded_at: timestamp
     state: int = 0  # 0 - idel; 1 - operating; 2 - success
     progress: str = "active"
-    stimulation: bool = False
+    stimulation_image: bool = False
+    stimulation_audio: bool = False
 
     @classmethod
     async def detect_upto_one_stroke(cls):
@@ -114,7 +115,8 @@ class Session:
             cls.stimulation_evaluation_pointer = i
             cls.progress = categorize_session_progress(cls.stroke_count / cls.strokes_goal * 100)
             if cls.stroke_count < cls.strokes_goal:
-                Session.stimulation = True
+                Session.stimulation_image = True
+                Session.stimulation_audio = True
         if len(Session.stimulation_log) > 110:
             cls.stimulation_log = cls.stimulation_log[100:]
             cls.stimulation_evaluation_pointer -= 100
@@ -168,46 +170,45 @@ async def orchestrator():
 
 async def beeper():
     audio = audiobusio.I2SOut(board.GP0, board.GP1, board.GP15)
-    # mp3 = audiomp3.MP3Decoder(open("beep.mp3", "rb"))
-    tone_volume = 0.1  # Increase this to increase the volume of the tone.
-    frequency = 440  # Set this to the Hz of the tone you want to generate.
-    length = 8000 // frequency
-    sine_wave = array.array("h", [0] * length)
-    for i in range(length):
-        sine_wave[i] = int((math.sin(math.pi * 2 * i / length)) * tone_volume * (2**15 - 1))
-    sine_wave_sample = audiocore.RawSample(sine_wave)
+    tone_volume = 0.08  # Increase this to increase the volume of the tone.
+    sample_rate = 8000
+
+    phrase = "484; "
+    character_duration_list = [1000, 2000, 1000, 1000, 1000, 1000]
+    silence_duration_list = [500] * 5
+
+    # Generate the robot speech
+    speech_length = sum(character_duration_list) + sum(silence_duration_list)
+    robot_speech = array.array("h", [0] * speech_length)
+
+    for i, char in enumerate(phrase):
+        char_start = sum(character_duration_list[:i]) + sum(silence_duration_list[:i])
+        char_end = char_start + character_duration_list[i+1]
+
+        for j in range(char_start, char_end):
+            t = (j - char_start) / character_duration_list[i]  # Time within the current character
+
+            # Generate the speech waveform
+            if char == " ":
+                robot_speech[j] = 0  # Silence for spaces
+            else:
+                frequency = 50 + ord(char) * 20  # Modulate frequency based on character
+                robot_speech[j] = int(tone_volume * math.sin(2 * math.pi * frequency * t) * (2 ** 15 - 1))
+
+    robot_speech_wave = audiocore.RawSample(robot_speech)
 
     while True:
         await asyncio.sleep(0.5)
-        if Session.stimulation == True:
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.1)
+        if Session.stimulation_audio:
+            Session.stimulation_audio = False
+            audio.play(robot_speech_wave, loop=True)
+            await asyncio.sleep(1)
             audio.stop()
-            # audio.play(mp3)
         elif Session.state == 2:
-            audio.play(sine_wave_sample, loop=True)
+            audio.play(robot_speech_wave, loop=True)
+            await asyncio.sleep(0.95)
+            audio.stop()
             await asyncio.sleep(0.05)
-            audio.stop()
-            await asyncio.sleep(0.1)
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.2)
-            audio.stop()
-            await asyncio.sleep(0.1)
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.05)
-            audio.stop()
-            await asyncio.sleep(0.1)
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.2)
-            audio.stop()
-            await asyncio.sleep(0.1)
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.05)
-            audio.stop()
-            await asyncio.sleep(0.1)
-            audio.play(sine_wave_sample, loop=True)
-            await asyncio.sleep(0.2)
-            audio.stop()
 
 
 def generate_image_display(image):
@@ -262,12 +263,18 @@ class Display:
 
     # Set Images
     image_idle_low_frames: list = ["images/low-idle-0.bmp", "images/low-idle-1.bmp"]
-    image_idle_medium_frames: list = ["images/med-idle-0.bmp", "images/med-idle-1.bmp"]
-    image_idle_high_frames: list = ["images/high-idle-0.bmp", "images/high-idle-1.bmp"]
-    image_stim_low_frames: list = ["images/low-stim-0.bmp", "images/low-stim-1.bmp"]
-    image_stim_medium_frames: list = ["images/med-stim-0.bmp", "images/med-stim-1.bmp"]
-    image_stim_high_frames: list = ["images/high-stim-0.bmp", "images/high-stim-1.bmp"]
-    image_cool_frames: list = ["images/cool-idle-0.bmp", "images/cool-idle-1.bmp"]
+    # image_idle_medium_frames: list = ["images/med-idle-0.bmp", "images/med-idle-1.bmp"]
+    # image_idle_high_frames: list = ["images/high-idle-0.bmp", "images/high-idle-1.bmp"]
+    # image_stim_low_frames: list = ["images/low-stim-0.bmp", "images/low-stim-1.bmp"]
+    # image_stim_medium_frames: list = ["images/med-stim-0.bmp", "images/med-stim-1.bmp"]
+    # image_stim_high_frames: list = ["images/high-stim-0.bmp", "images/high-stim-1.bmp"]
+    # image_cool_frames: list = ["images/cool-idle-0.bmp", "images/cool-idle-1.bmp"]
+    image_idle_medium_frames = image_idle_low_frames
+    image_idle_high_frames = image_idle_low_frames
+    image_stim_low_frames = image_idle_low_frames
+    image_stim_medium_frames = image_idle_low_frames
+    image_stim_high_frames = image_idle_low_frames
+    image_cool_frames = image_idle_low_frames
     image_orgasm_frames: list = [
         "images/orgasm-0.bmp",
         "images/orgasm-1.bmp",
@@ -351,11 +358,11 @@ class Display:
             sroll_text.x = x
 
             # find the next frame to display
-            if Session.stimulation:
+            if Session.stimulation_image:
                 frame = cls.image_displays_stim_categories[Session.progress][stimulation_display_progress]
                 if stimulation_display_progress == 1:
                     stimulation_display_progress = 0
-                    Session.stimulation = False
+                    Session.stimulation_image = False
                 else:
                     stimulation_display_progress += 1
             elif Session.state == 2:  # ORGASM
